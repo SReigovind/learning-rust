@@ -107,28 +107,89 @@ fn conv2d(input: &Tensor, kernel: &Tensor)-> Tensor{
 	
 	}
 
+fn conv2d_backward(input: &Tensor, kernel: &Tensor, grad_output: &Tensor,
+) -> (Tensor, Tensor) {
+
+	let input_h = input.shape[0];
+	let input_w = input.shape[1];
+
+	let kernel_h = kernel.shape[0];
+	let kernel_w = kernel.shape[1];
+
+	let output_h = input_h - kernel_h + 1;
+	let output_w = input_w - kernel_w + 1;
+
+	assert_eq!(grad_output.shape, vec![output_h, output_w]);
+
+	let mut grad_input = Tensor::new(
+		vec![0.0; input_h * input_w],
+		vec![input_h, input_w],
+	);
+
+	let mut grad_kernel = Tensor::new(
+		vec![0.0; kernel_h * kernel_w],
+		vec![kernel_h, kernel_w],
+	);
+
+	for i in 0..output_h {
+		for j in 0..output_w {
+			let grad = grad_output.get(&[i, j]);
+
+			for u in 0..kernel_h {
+				for v in 0..kernel_w {
+					let input_value = input.get(&[i + u, j + v]);
+					let kernel_value = kernel.get(&[u, v]);
+
+				let current_input_grad =grad_input.get(&[i + u, j + v]);
+
+				grad_input.set(&[i + u, j + v],
+				current_input_grad + grad * kernel_value,);
+
+				let current_kernel_grad = grad_kernel.get(&[u, v]);
+
+				grad_kernel.set(&[u, v],
+				current_kernel_grad + grad * input_value,);
+
+				}
+			}
+		}
+	}
+
+	(grad_input, grad_kernel)
+}
+
 fn main() {
 	// Testing the implementation.
 	
     let input = Tensor::new(
-        vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,
-        ],
-        vec![3, 3],
-    );
-
-    let kernel = Tensor::new(
-        vec![
-            1.0, 2.0,
-            3.0, 4.0,
-        ],
-        vec![2, 2],
-    );
-
-    let output = conv2d(&input, &kernel);
-
-    println!("Output shape: {:?}", output.shape);
-    println!("Output data: {:?}", output.data);
+            vec![
+                1.0, 2.0, 3.0,
+                4.0, 5.0, 6.0,
+                7.0, 8.0, 9.0,
+            ],
+            vec![3, 3],
+        );
+    
+        let kernel = Tensor::new(
+            vec![1.0, 2.0, 3.0, 4.0],
+            vec![2, 2],
+        );
+    
+        // Forward pass
+        let output = conv2d(&input, &kernel);
+    
+        println!("Forward output: {:?}", output.data);
+    
+        // Upstream gradient supplied by the next layer
+        let grad_output = Tensor::new(
+            vec![1.0, 2.0, 3.0, 4.0],
+            vec![2, 2],
+        );
+    
+        // Backward pass
+        let (grad_input, grad_kernel) =
+            conv2d_backward(&input, &kernel, &grad_output);
+    
+        println!("Input gradient: {:?}", grad_input.data);
+        println!("Kernel gradient: {:?}", grad_kernel.data);
 }
